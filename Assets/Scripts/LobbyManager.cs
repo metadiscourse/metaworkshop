@@ -9,10 +9,12 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     [SerializeField] private TMP_InputField nameInput;
     [SerializeField] private TMP_InputField codeInput;
     [SerializeField] private GameObject lobbyPanel;
+    private UIManager uiManager;
 
     private void Start()
     {
         PhotonNetwork.ConnectUsingSettings();
+        uiManager = FindFirstObjectByType<UIManager>();
     }
 
     public override void OnConnectedToMaster()
@@ -51,7 +53,7 @@ public class LobbyManager : MonoBehaviourPunCallbacks
         if (PhotonNetwork.IsMasterClient)
         {
             // Show reveal button for master
-            FindObjectOfType<UIManager>().ShowRevealButton(true);
+            uiManager.ShowRevealButton(true);
         }
     }
 

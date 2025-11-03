@@ -1,19 +1,20 @@
 using UnityEngine;
-using TMPro;
 using System.Collections;
 using Photon.Pun;
 
-// Attached to CardPrefab: handles animation and click for bonk.
+/// <summary>
+/// Handles card behavior: floating to center and registering bonks.
+/// </summary>
 public class CardScript : MonoBehaviour
 {
     public string clusterId;
-    private Vector3 centerPos = Vector3.zero; // Reference to central area
+    private readonly Vector3 centerPos = Vector3.zero;
 
     public void FloatToCenter()
     {
-        // Start at random position
-        transform.position = Random.insideUnitSphere * 10 + new Vector3(0, 5, 0);
-        transform.rotation = Quaternion.Euler(0, Random.Range(0, 360), 0);
+        // Start at a random 3D position near center
+        transform.position = Random.insideUnitSphere * 10f + new Vector3(0, 5, 0);
+        transform.rotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
         StartCoroutine(LerpToCenter());
     }
 
@@ -21,20 +22,21 @@ public class CardScript : MonoBehaviour
     {
         float duration = 2f;
         Vector3 startPos = transform.position;
-        // Target with small random offset to avoid overlap
         Vector3 targetPos = centerPos + Random.insideUnitSphere * 0.5f;
-        float time = 0;
-        while (time < duration)
+
+        float t = 0;
+        while (t < duration)
         {
-            transform.position = Vector3.Lerp(startPos, targetPos, time / duration);
-            time += Time.deltaTime;
+            transform.position = Vector3.Lerp(startPos, targetPos, t / duration);
+            t += Time.deltaTime;
             yield return null;
         }
+        transform.position = targetPos; // ensure final placement
     }
 
     private void OnMouseDown()
     {
-        // Register bonk by RPC to master
-        GameManager.Instance.photonView.RPC("BonkCard", PhotonTargets.MasterClient, clusterId);
+        if (GameManager.Instance == null) return;
+        GameManager.Instance.photonView.RPC("BonkCard", RpcTarget.MasterClient, clusterId);
     }
 }
