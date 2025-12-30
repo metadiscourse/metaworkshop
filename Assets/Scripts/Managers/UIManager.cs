@@ -11,6 +11,7 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown phaseDropdown; // Options: pre, post
     [SerializeField] private GameObject revealButton;
     [SerializeField] private TextMeshProUGUI comboText;
+    [SerializeField] private TextMeshProUGUI warningText;
 
     public void SubmitCard()
     {
@@ -43,5 +44,26 @@ public class UIManager : MonoBehaviour
     private void ClearComboText()
     {
         comboText.text = "";
+    }
+
+    public void ShowError(string message)
+    {
+        if (!warningText)
+        {
+            Debug.LogError(message);
+            return;
+        }
+
+        warningText.text = message;
+        CancelInvoke(nameof(ClearError));
+        Invoke(nameof(ClearError), 4f);
+    }
+
+    private void ClearError()
+    {
+        if (warningText)
+        {
+            warningText.text = "";
+        }
     }
 }

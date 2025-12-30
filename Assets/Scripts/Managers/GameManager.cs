@@ -7,6 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.Networking;
+using System.Linq;
 
 /// <summary>
 /// Core multiplayer logic: card submission, reveal orchestration, and combo tracking.
@@ -38,25 +39,24 @@ public class GameManager : MonoBehaviourPun, IOnEventCallback
     private void OnEnable() => PhotonNetwork.AddCallbackTarget(this);
     private void OnDisable() => PhotonNetwork.RemoveCallbackTarget(this);
 
-    // ---------------------------
     // RPC: Card Submission
-    // ---------------------------
     [PunRPC]
-    public void SubmitCard(string text, string phase)
+    public void SubmitCard(string text, string phase, PhotonMessageInfo info)
     {
         if (!PhotonNetwork.IsMasterClient) return;
+
+        string senderId = info.Sender.UserId;
+
         StartCoroutine(PostJson($"{ServerUrl}/sessions/{PhotonNetwork.CurrentRoom.Name}/cards",
             JsonUtility.ToJson(new CardSubmitData
             {
                 text = text,
-                player_id = PhotonNetwork.LocalPlayer.UserId,
+                player_id = senderId,
                 phase = phase
             })));
     }
 
-    // ---------------------------
     // Reveal logic
-    // ---------------------------
     public void TriggerReveal()
     {
         if (!PhotonNetwork.IsMasterClient) return;
@@ -87,50 +87,67 @@ public class GameManager : MonoBehaviourPun, IOnEventCallback
             int waveSize = 5;
             for (int i = 0; i < shuffled.Count; i += waveSize)
             {
-                var wave = shuffled.GetRange(i, Mathf.Min(waveSize, shuffled.Count - i)).ToArray();
+                var wave = shuffled.GetRange(i, Math.Min(waveSize, shuffled.Count - i));
+
+                object[] wavePayload = new object[wave.Count];
+                for (int w = 0; w < wave.Count; w++)
+                {
+                    wavePayload[w] = new object[] { wave[w].text, wave[w].cleaned };
+                }
+
                 RaiseEventOptions opts = new() { Receivers = ReceiverGroup.All };
-                PhotonNetwork.RaiseEvent(RevealWaveEvent, wave, opts, SendOptions.SendReliable);
+
+                // IMPORTANT: use ExitGames.Client.Photon.SendOptions, not Photon.Realtime.SendOptions
+                PhotonNetwork.RaiseEvent(RevealWaveEvent, wave.ToArray(), opts, SendOptions.SendReliable);
+
                 yield return new WaitForSeconds(2f);
             }
         }
     }
 
-    // ---------------------------
     // RaiseEvent callback handler
-    // ---------------------------
     public void OnEvent(EventData photonEvent)
     {
         if (photonEvent.Code == RevealWaveEvent)
         {
-            var wave = (RevealCardData[])photonEvent.CustomData;
-            foreach (var card in wave)
+            object[] wave = (object[])photonEvent.CustomData;
+
+            var cardPrefab = Resources.Load<GameObject>("CardPrefab");
+            if (!cardPrefab)
             {
-                GameObject cardObj = Instantiate(Resources.Load<GameObject>("CardPrefab"));
-                cardObj.GetComponentInChildren<TextMeshPro>().text = card.text;
+                Debug.LogError("Missing Resources/CardPrefab");
+                uiManager?.ShowError("Missing Resources/CardPrefab");
+                return;
+            }
+
+            foreach (object item in wave)
+            {
+                object[] tuple = (object[])item;
+                string text = (string)tuple[0];
+                string cleaned = (string)tuple[1];
+
+                GameObject cardObj = Instantiate(cardPrefab);
+
+                // NOTE: Your prefab uses TextMeshPro (3D), not TextMeshProUGUI
+                cardObj.GetComponentInChildren<TextMeshPro>().text = text;
+
                 var script = cardObj.GetComponent<CardScript>();
-                script.clusterId = card.cleaned;
+                script.clusterId = cleaned;
                 script.FloatToCenter();
             }
         }
-        else if (photonEvent.Code == ComboEvent)
-        {
-            object[] data = (object[])photonEvent.CustomData;
-            string clusterId = (string)data[0];
-            int count = (int)data[1];
-            uiManager?.ShowCombo(clusterId, count);
-        }
     }
 
-    // ---------------------------
     // RPC: Bonk Logic
-    // ---------------------------
     [PunRPC]
-    public void BonkCard(string clusterId)
+    public void BonkCard(string clusterId, PhotonMessageInfo info)
     {
         if (!PhotonNetwork.IsMasterClient) return;
-        long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        BonkData bonk = new() { cluster_id = clusterId, player_id = PhotonNetwork.LocalPlayer.UserId, timestamp = ts };
+        long ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        string senderId = info.Sender.UserId;
+
+        BonkData bonk = new() { cluster_id = clusterId, player_id = senderId, timestamp = ts };
         allBonks.Add(bonk);
         StartCoroutine(PostJson($"{ServerUrl}/sessions/{PhotonNetwork.CurrentRoom.Name}/bonks", JsonUtility.ToJson(bonk)));
 
@@ -147,9 +164,7 @@ public class GameManager : MonoBehaviourPun, IOnEventCallback
         }
     }
 
-    // ---------------------------
     // Helper: Post JSON
-    // ---------------------------
     private IEnumerator PostJson(string url, string json)
     {
         var req = new UnityWebRequest(url, "POST");
@@ -163,9 +178,7 @@ public class GameManager : MonoBehaviourPun, IOnEventCallback
     }
 }
 
-// ---------------------------
 // Data Classes
-// ---------------------------
 [System.Serializable] public class CardSubmitData { public string text; public string player_id; public string phase; }
 [System.Serializable] public class RevealCardData { public string text; public string cleaned; }
 [System.Serializable] public class RevealCardWrapper { public RevealCardData[] cards; }

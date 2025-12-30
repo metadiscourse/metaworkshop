@@ -45,9 +45,21 @@ public class LobbyManager : MonoBehaviourPunCallbacks
     public override void OnJoinedRoom()
     {
         lobbyPanel.SetActive(false);
-        // Instantiate minimal avatar (position random around center)
-        Vector3 pos = Random.insideUnitSphere * 5 + new Vector3(0, 1, 0);
+
+        Debug.Log("AvatarPrefab Resources.Load = " + (Resources.Load<GameObject>("AvatarPrefab") != null));
+
+        // Instantiate minimal avatar 
+        Vector2 circle = Random.insideUnitCircle.normalized * 3f;
+        Vector3 pos = new Vector3(circle.x, 1f, circle.y);
+
+
+        if (Resources.Load<GameObject>("AvatarPrefab") == null)
+        {
+            Debug.LogError("Missing Resources/AvatarPrefab prefab. Expected at Assets/Resources/AvatarPrefab.prefab");
+            return;
+        }
         GameObject avatar = PhotonNetwork.Instantiate("AvatarPrefab", pos, Quaternion.identity);
+
         // Set name tag
         avatar.GetComponentInChildren<TextMeshPro>().text = PhotonNetwork.NickName;
         if (PhotonNetwork.IsMasterClient)
