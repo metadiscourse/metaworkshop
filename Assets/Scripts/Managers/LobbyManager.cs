@@ -2,6 +2,7 @@ using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using TMPro;
+using Unity.Cinemachine;
 
 // Handles lobby: create/join session, set name, instantiate avatar.
 public class LobbyManager : MonoBehaviourPunCallbacks
@@ -59,6 +60,24 @@ public class LobbyManager : MonoBehaviourPunCallbacks
             return;
         }
         GameObject avatar = PhotonNetwork.Instantiate("AvatarPrefab", pos, Quaternion.identity);
+
+        // Cinemachine follow for local player
+        PhotonView pv = avatar.GetComponent<PhotonView>();
+
+        if (pv != null && pv.IsMine)
+        {
+            CinemachineCamera cmCam = FindFirstObjectByType<CinemachineCamera>();
+            if (cmCam != null)
+            {
+                cmCam.Follow = avatar.transform;
+                cmCam.LookAt = avatar.transform; // Head transform later
+                Debug.Log("[Camera] Set follow to local avatar.");
+            }
+            else
+            {
+            Debug.LogWarning("[Camera] No CinemachineCamera found in scene.");
+            }
+        }
 
         // Set name tag
         avatar.GetComponentInChildren<TextMeshPro>().text = PhotonNetwork.NickName;

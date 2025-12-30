@@ -300,6 +300,10 @@ MonoBehaviour:
   acceleration: 25
   maxHorizontalSpeed: 7
   pushImpulse: 2.5
+  obstacleBumpImpulse: 3
+  obstacleBumpMinSpeed: 2
+  obstacleBumpUpwardImpulse: 0.5
+  obstacleBumpCooldown: 0.5
 --- !u!1 &8658556337250113277
 GameObject:
   m_ObjectHideFlags: 0

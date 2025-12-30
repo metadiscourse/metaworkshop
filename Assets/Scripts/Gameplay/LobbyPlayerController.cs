@@ -18,6 +18,15 @@ public class LobbyPlayerController : MonoBehaviourPun
     [Header("Bump / Push")]
     [SerializeField] private float pushImpulse = 2.5f;
 
+    [Header("Obstacle bumps")]
+    [SerializeField] private float obstacleBumpImpulse = 10.0f;
+    [SerializeField] private float obstacleBumpMinSpeed = 2.0f;
+    [SerializeField] private float obstacleBumpUpwardImpulse = 1.0f;
+
+    // Cooldown to prevent repeated bumps
+    [SerializeField] private float obstacleBumpCooldown = 0.2f;
+    private float nextObstacleBumpTime;
+
     private Rigidbody rb;
     private Camera cam;
 
@@ -83,12 +92,46 @@ public class LobbyPlayerController : MonoBehaviourPun
     {
         if (!photonView.IsMine) return;
 
+        // 1) Player-to-player bump (only if the OTHER object has a Rigidbody)
         Rigidbody otherRb = collision.rigidbody;
-        if (!otherRb) return;
+        if (otherRb != null)
+        {
+            Vector3 pushDirection = Vector3.ProjectOnPlane((otherRb.position - rb.position), Vector3.up).normalized;
+            if (pushDirection.sqrMagnitude > 0.001f)
+                otherRb.AddForce(pushDirection * pushImpulse, ForceMode.Impulse);
 
-        Vector3 pushDir = Vector3.ProjectOnPlane((otherRb.position - rb.position), Vector3.up).normalized;
-        if (pushDir.sqrMagnitude < 0.001f) return;
+            return;
+        }
 
-        otherRb.AddForce(pushDir * pushImpulse, ForceMode.Impulse);
+        // 2) Obstacle bump (walls usually have NO rigidbody, so we handle them here)
+        int obstacleMask = LayerMask.GetMask("Obstacles");
+        bool isObstacle = ((1 << collision.gameObject.layer) & obstacleMask) != 0;
+        if (!isObstacle) return;
+
+        // Cooldown gate
+        if (Time.time < nextObstacleBumpTime) return;
+        nextObstacleBumpTime = Time.time + obstacleBumpCooldown;
+
+        float speed = collision.relativeVelocity.magnitude;
+        if (speed < obstacleBumpMinSpeed) return;
+
+        // Contact normal points out of the obstacle (toward the player)
+        ContactPoint cp = collision.GetContact(0);
+        Vector3 awayFromWall = Vector3.ProjectOnPlane(cp.normal, Vector3.up).normalized;
+        if (awayFromWall.sqrMagnitude < 0.001f) return;
+
+        // Cancel some into-wall velocity so we actually bounce instead of slide
+        Vector3 v = rb.linearVelocity;
+        Vector3 intoWall = Vector3.Project(v, -awayFromWall);
+        rb.linearVelocity = v - intoWall * 0.6f;
+
+        // Apply bump impulse
+        rb.AddForce(awayFromWall * obstacleBumpImpulse, ForceMode.Impulse);
+
+        // Optional tiny hop
+        if (obstacleBumpUpwardImpulse > 0f)
+            rb.AddForce(Vector3.up * obstacleBumpUpwardImpulse, ForceMode.Impulse);
+
+        Debug.Log($"[BUMP] Hit obstacle '{collision.gameObject.name}' speed={speed:F1}");
     }
 }
