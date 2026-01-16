@@ -13,6 +13,50 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI comboText;
     [SerializeField] private TextMeshProUGUI warningText;
 
+    [SerializeField] private GameObject cardPhasePanel;
+    [SerializeField] private TextMeshProUGUI cardsRemainingText;
+    [SerializeField] private TextMeshProUGUI timerText;
+
+    private int cardsRequired;
+    private int cardsSubmitted;
+    private float writeEndLocalTime;
+
+    public void ShowCardPhaseUI(bool show, int required, float serverStartTime, float durationSeconds)
+    {
+        if (cardPhasePanel) cardPhasePanel.SetActive(show);
+
+        if (show)
+        {
+            cardsRequired = required;
+            cardsSubmitted = 0;
+
+            // Time
+            writeEndLocalTime = Time.time + durationSeconds;
+
+            UpdateCardsRemaining();
+            CancelInvoke(nameof(UpdateTimer));
+            InvokeRepeating(nameof(UpdateTimer), 0f, 0.2f);
+        }
+        else
+        {
+            CancelInvoke(nameof(UpdateTimer));
+            if (timerText) timerText.text = "";
+        }
+    }
+
+    private void UpdateCardsRemaining()
+    {
+        if (cardsRemainingText)
+            cardsRemainingText.text = $"Cards: {cardsSubmitted}/{cardsRequired}";
+    }
+
+    private void UpdateTimer()
+    {
+        if (!timerText) return;
+        float remaining = Mathf.Max(0f, writeEndLocalTime - Time.time);
+        timerText.text = $"Time: {remaining:0}s";
+    }
+
     public void SubmitCard()
     {
         string text = cardInput.text.Trim();
@@ -22,6 +66,15 @@ public class UIManager : MonoBehaviour
         GameManager.Instance.photonView.RPC("SubmitCard", RpcTarget.MasterClient, text, phase);
 
         cardInput.text = "";
+
+        cardsSubmitted++;
+        UpdateCardsRemaining();
+
+        if (RoundManager.Instance != null)
+        {
+            // Notify master the player submitted a card
+            RoundManager.Instance.photonView.RPC("RPC_NotifySubmitted", RpcTarget.MasterClient, PhotonNetwork.LocalPlayer.UserId);
+        }
     }
 
     public void StartReveal()

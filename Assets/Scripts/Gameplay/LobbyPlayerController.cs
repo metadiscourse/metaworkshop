@@ -30,6 +30,8 @@ public class LobbyPlayerController : MonoBehaviourPun
     private Rigidbody rb;
     private Camera cam;
 
+    private bool movementEnabled = true;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -44,6 +46,13 @@ public class LobbyPlayerController : MonoBehaviourPun
             // (Optional) reduce smoothing.
             rb.interpolation = RigidbodyInterpolation.None;
         }
+    }
+
+    public void SetMovementEnabled(bool enabled)
+    {
+        movementEnabled = enabled;
+
+        if (!enabled) moveInput = Vector2.zero;
     }
 
     // ---- PlayerInput Unity Events (Invoke Unity Events mode) ----
@@ -61,6 +70,7 @@ public class LobbyPlayerController : MonoBehaviourPun
 
     private void FixedUpdate()
     {
+        if (!movementEnabled) return;
         if (!photonView.IsMine) return;
         if (!cam) cam = Camera.main;
         if (!cam) return;

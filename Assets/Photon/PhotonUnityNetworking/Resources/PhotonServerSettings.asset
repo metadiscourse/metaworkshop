@@ -41,6 +41,9 @@ MonoBehaviour:
   - RespawnSpaceship
   - BonkCard
   - SubmitCard
+  - RPC_BeginCardPhase
+  - RPC_BeginReveal
+  - RPC_NotifySubmitted
   DisableAutoOpenWizard: 1
   ShowSettings: 0
   DevRegionSetOnce: 1
